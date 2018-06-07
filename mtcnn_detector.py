@@ -8,7 +8,7 @@ import mxnet as mx
 import numpy as np
 from skimage import transform
 
-from helper import nms, adjust_input, detect_first_stage_warpper
+from helper import nms, adjust_input, detect_first_stage
 
 
 class MtcnnDetector(object):
@@ -52,12 +52,7 @@ class MtcnnDetector(object):
         models = ['det1', 'det2', 'det3', 'det4']
         models = [os.path.join(model_folder, f) for f in models]
 
-        self.PNets = []
-        for i in range(num_worker):
-            worker_net = mx.model.FeedForward.load(models[0], 1, ctx=ctx)
-            self.PNets.append(worker_net)
-
-        self.Pool = Pool(num_worker)
+        self.PNet = mx.model.FeedForward.load(models[0], 1, ctx=ctx)
 
         self.RNet = mx.model.FeedForward.load(models[1], 1, ctx=ctx)
         self.ONet = mx.model.FeedForward.load(models[2], 1, ctx=ctx)
@@ -240,9 +235,10 @@ class MtcnnDetector(object):
         sliced_index = self.slice_index(len(scales))
         total_boxes = []
         for batch in sliced_index:
-            local_boxes = self.Pool.map(detect_first_stage_warpper,
-                                        zip(repeat(img), self.PNets[:len(batch)], [scales[i] for i in batch],
-                                            repeat(self.threshold[0])))
+            # local_boxes = self.Pool.map(detect_first_stage_warpper,
+            #                             zip(repeat(img), self.PNets[:len(batch)], [scales[i] for i in batch],
+            #                                 repeat(self.threshold[0])))
+            local_boxes = [detect_first_stage(img,self.PNet,scales[i],self.threshold[0]) for i in batch]
             total_boxes.extend(local_boxes)
 
         # remove the Nones 
